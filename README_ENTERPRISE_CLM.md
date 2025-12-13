@@ -21,11 +21,17 @@ Run these in order:
 2) **Enterprise feature layer (schema patch v2)**  
    - `schema_ENTERPRISE_CLM_REFERENCE_V2.sql`
 
-3) **Base RLS + storage hardening**  
+3) **Billing / subscriptions (optional, for the demo billing UI + Edge Function)**  
+   - `schema_BILLING_ENTERPRISE.sql`
+
+4) **Base RLS + storage hardening**  
    - `rls_UPDATED_ENTERPRISE.sql`
 
-4) **Enterprise RLS patch v2**  
+5) **Enterprise RLS patch v2**  
    - `rls_ENTERPRISE_CLM_REFERENCE_V2.sql`
+
+6) **Billing RLS (optional, for the demo billing UI + Edge Function)**  
+   - `rls_BILLING_ENTERPRISE.sql`
 
 > Tip: If you already ran the base scripts, you can run the v2 patch scripts safely (they use `IF NOT EXISTS` / additive migrations where possible).
 
@@ -39,13 +45,15 @@ Run after the base schema is installed:
 - `migrations/0001_auth_onboarding.sql`
 
 ### Run locally
-1) Serve the repo root over HTTP (auth callback needs a real origin):
-   - `python -m http.server 8080`
-2) Open:
-   - `http://localhost:8080/auth/signup.html`
-3) Supabase config (Project URL + anon key) is set in `auth/config.js` (override via the **Supabase config** section in `auth/callback.html` if needed).
-4) Complete sign up, then continue in:
-   - `http://localhost:8080/app/index.html`
+1) Install deps:
+   - `npm install`
+2) Start the dev server:
+   - `npm run dev`
+3) Open:
+   - `http://localhost:5173/auth/signup.html`
+4) Supabase config (Project URL + anon key) is set in `auth/config.js` (override via the **Supabase config** section in `auth/callback.html` if needed).
+5) Complete sign up, then continue in:
+   - `http://localhost:5173/app/index.html`
 
 ### Tests
 - `node --test`
@@ -72,3 +80,12 @@ Run after the base schema is installed:
 
 ## Where to look next
 - See **DATABASE_REFERENCE_ENTERPRISE_CLM.md** for the table-by-table reference and conventions.
+
+## Not included (you need to implement or wire these)
+- Audit log writer (server-side) to insert into `audit_logs` (end users cannot insert by design).
+- Webhook dispatcher/retry worker to process `webhook_deliveries`.
+- Embeddings pipeline to chunk documents and write `contract_embeddings`.
+
+## Security notes
+- Do not commit secrets: keep Supabase access tokens/service-role keys in local env vars only (see `.env.example`).
+- If a token/key was ever exposed, rotate it in Supabase immediately and update any deployments.

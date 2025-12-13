@@ -120,3 +120,13 @@ Database column:
 
 Access:
 - use signed URLs or server-side proxy (Edge Function).
+
+---
+
+## 9) Billing (optional / demo)
+
+If you enable billing in this repo, the minimal tables are:
+- `plans` (global plan catalog; `id` is a stable string like `basic` / `real_estate`)
+- `company_subscriptions` (one active subscription per company)
+- `invoices` (read-only to end users; typically written by your billing provider integration)
+- `billing_events` (append-style event log for subscription changes)

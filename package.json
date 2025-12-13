@@ -3,7 +3,17 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test"
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "node --test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10"
   }
 }
-
