@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Auth Callback · Enterprise CLM</title>
+    <link rel="icon" href="../landing/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="./auth.css" />
+  </head>
+  <body>
+    <main class="auth-main">
+      <div class="container">
+        <section class="auth-card" aria-label="Completing authentication">
+          <div class="card-header">
+            <h1 class="card-title">Completing sign-in…</h1>
+            <p class="muted" id="status" aria-live="polite">Exchanging code for a session.</p>
+          </div>
+
+          <div class="helper-row">
+            <a href="./login.html">Back to login</a>
+            <a href="../index.html">Back to landing</a>
+          </div>
+
+          <details class="config">
+            <summary>Supabase config</summary>
+            <div class="config-grid">
+              <div class="field">
+                <label for="sb-url">Project URL</label>
+                <input id="sb-url" type="text" placeholder="https://xxxx.supabase.co" data-supabase-url />
+              </div>
+              <div class="field">
+                <label for="sb-anon">Anon key</label>
+                <input id="sb-anon" type="text" placeholder="eyJhbGciOi..." data-supabase-anon-key />
+              </div>
+              <button class="button secondary" type="button" data-save-supabase-config>Save</button>
+            </div>
+          </details>
+        </section>
+      </div>
+    </main>
+
+    <div class="toast" role="status" aria-live="polite" aria-atomic="true" hidden></div>
+    <script type="module" src="./callback.js"></script>
+  </body>
+</html>
+

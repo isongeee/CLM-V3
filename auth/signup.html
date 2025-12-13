@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sign up · Enterprise CLM</title>
+    <link rel="icon" href="../landing/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="./auth.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <div class="auth-shell">
+      <header class="site-header">
+        <div class="container header-inner">
+          <div class="brand">
+            <a class="logo" href="../index.html" aria-label="Enterprise CLM home">CLM</a>
+            <span class="brand-text">
+              <strong>Enterprise CLM</strong>
+              <span class="muted">Sign up</span>
+            </span>
+          </div>
+
+          <nav class="nav" aria-label="Primary">
+            <a href="../index.html#features">Features</a>
+            <a href="../index.html#security">Security</a>
+            <a class="button secondary small" href="./login.html">Log in</a>
+          </nav>
+        </div>
+      </header>
+
+      <main id="main" class="auth-main">
+        <div class="container">
+          <section class="auth-card" aria-label="Sign up options">
+            <div class="card-header">
+              <h1 class="card-title">Create your account</h1>
+              <p class="muted">Choose how you want to get started.</p>
+            </div>
+
+            <div class="tabs" role="tablist" aria-label="Sign up options">
+              <div class="tab">
+                <input id="mode-create" type="radio" name="mode" value="create" checked />
+                <label for="mode-create">Create an organization</label>
+                <p>Set up a new tenant and become the first admin.</p>
+              </div>
+              <div class="tab">
+                <input id="mode-join" type="radio" name="mode" value="join" />
+                <label for="mode-join">Join an organization</label>
+                <p>Use an invite code to join an existing tenant.</p>
+              </div>
+            </div>
+
+            <form class="auth-form" id="signup-form">
+              <div class="field">
+                <label for="full_name">Full name</label>
+                <input id="full_name" name="full_name" type="text" autocomplete="name" required />
+              </div>
+
+              <div class="field">
+                <label for="email">Email</label>
+                <input id="email" name="email" type="email" autocomplete="email" required />
+              </div>
+
+              <div class="field">
+                <label for="password">Password</label>
+                <input id="password" name="password" type="password" autocomplete="new-password" required />
+              </div>
+
+              <div id="create-org-fields">
+                <div class="field">
+                  <label for="company_name">Organization name</label>
+                  <input id="company_name" name="company_name" type="text" autocomplete="organization" />
+                </div>
+              </div>
+
+              <div id="join-org-fields" class="hidden">
+                <div class="field">
+                  <label for="invite_code">Invite code</label>
+                  <input id="invite_code" name="invite_code" type="text" placeholder="e.g. a1b2c3d4" />
+                </div>
+              </div>
+
+              <div class="auth-actions">
+                <button class="button" type="submit">Sign up</button>
+              </div>
+
+              <p class="muted" id="status" aria-live="polite"></p>
+            </form>
+
+            <div class="helper-row">
+              <a href="./login.html">Already have an account?</a>
+              <a href="../index.html">Back to landing</a>
+            </div>
+          </section>
+        </div>
+      </main>
+
+      <footer class="site-footer">
+        <div class="container footer-inner">
+          <p class="muted"><a href="../docs.html?doc=readme">Documentation</a></p>
+          <p class="muted"><a href="../index.html">Home</a></p>
+        </div>
+      </footer>
+    </div>
+
+    <div class="toast" role="status" aria-live="polite" aria-atomic="true" hidden></div>
+    <script type="module" src="./signup.js"></script>
+  </body>
+</html>

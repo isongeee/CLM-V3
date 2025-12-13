@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Enterprise CLM documentation: overview, design context, and database reference."
+    />
+    <title>Enterprise CLM Documentation</title>
+    <link rel="icon" href="landing/favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="landing/styles.css" />
+    <link rel="stylesheet" href="docs.css" />
+  </head>
+
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="site-header" id="site-header">
+      <div class="container header-inner">
+        <div class="brand">
+          <a class="logo" href="index.html" aria-label="Enterprise CLM home">CLM</a>
+          <span class="brand-text">
+            <strong>Enterprise CLM</strong>
+            <span class="muted">Documentation</span>
+          </span>
+        </div>
+
+        <nav class="nav" aria-label="Primary">
+          <a href="index.html">Home</a>
+          <a href="docs.html" aria-current="page">Docs</a>
+          <a href="auth/login.html">Log in</a>
+          <a class="button small" href="auth/signup.html">Start Free Trial</a>
+        </nav>
+
+        <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="mobile-nav">
+          <span class="sr-only">Toggle navigation</span>
+          <span aria-hidden="true">Menu</span>
+        </button>
+      </div>
+
+      <div id="mobile-nav" class="mobile-nav container" hidden>
+        <a href="index.html">Home</a>
+        <a href="docs.html" aria-current="page">Docs</a>
+        <a href="auth/login.html">Log in</a>
+        <a class="button small" href="auth/signup.html">Start Free Trial</a>
+      </div>
+    </header>
+
+    <main id="main" class="docs-main">
+      <section class="section docs-hero">
+        <div class="container">
+          <div class="docs-hero-inner">
+            <div>
+              <h1>Enterprise CLM Documentation</h1>
+              <p class="muted">
+                Built from the repository reference docs: setup notes, design context, and database reference.
+              </p>
+            </div>
+            <div class="docs-hero-actions">
+              <a id="raw-link" class="button secondary small" href="README_ENTERPRISE_CLM.md">View raw Markdown</a>
+            </div>
+          </div>
+
+          <nav class="docs-tabs" aria-label="Documentation sections">
+            <a class="docs-tab" href="?doc=readme" data-doc="readme">Overview</a>
+            <a class="docs-tab" href="?doc=context" data-doc="context">Design Context</a>
+            <a class="docs-tab" href="?doc=database" data-doc="database">Database Reference</a>
+          </nav>
+        </div>
+      </section>
+
+      <section class="section docs-content">
+        <div class="container docs-grid">
+          <aside class="docs-sidebar" aria-label="On this page">
+            <div class="docs-panel">
+              <div class="docs-panel-title">On this page</div>
+              <nav id="toc" class="docs-toc"></nav>
+            </div>
+          </aside>
+
+          <article class="docs-article">
+            <div id="status" class="docs-status muted" role="status" aria-live="polite"></div>
+            <div id="content" class="markdown-body" aria-label="Documentation content"></div>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container">
+        <div class="footer-bottom">
+          <p>&copy; 2024 Enterprise CLM. All rights reserved.</p>
+          <p class="muted"><a href="index.html">Back to home</a></p>
+        </div>
+      </div>
+    </footer>
+
+    <div class="toast" role="status" aria-live="polite" aria-atomic="true" hidden></div>
+    <script type="module" src="docs.js"></script>
+  </body>
+</html>

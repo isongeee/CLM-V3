@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>App · Enterprise CLM</title>
+    <link rel="icon" href="../landing/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="../landing/styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="site-header">
+      <div class="container header-inner">
+        <div class="brand">
+          <a class="logo" href="../index.html" aria-label="Enterprise CLM home">CLM</a>
+          <span class="brand-text">
+            <strong>Enterprise CLM</strong>
+            <span class="muted">App</span>
+          </span>
+        </div>
+
+        <nav class="nav" aria-label="Primary">
+          <a class="button secondary small" href="../auth/login.html">Switch account</a>
+          <button class="button small" id="sign-out" type="button">Sign out</button>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main" class="section">
+      <div class="container">
+        <div class="section-head">
+          <h1>Welcome</h1>
+          <p class="muted" id="session-status">Loading session…</p>
+        </div>
+
+        <div class="grid two">
+          <section class="panel" aria-label="Your organizations">
+            <h2>Your organizations</h2>
+            <div id="companies" class="muted">Loading…</div>
+          </section>
+
+          <section class="panel" aria-label="Onboarding">
+            <h2>Onboarding</h2>
+            <p class="muted" id="onboarding-status">No pending onboarding.</p>
+          </section>
+        </div>
+      </div>
+    </main>
+
+    <div class="toast" role="status" aria-live="polite" aria-atomic="true" hidden></div>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
+

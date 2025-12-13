@@ -1,0 +1,134 @@
+@import url("../landing/styles.css");
+
+.auth-shell {
+  min-height: calc(100vh - 1px);
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+}
+
+.auth-main {
+  padding: 46px 0 56px;
+}
+
+.auth-card {
+  width: min(560px, 100%);
+  margin: 0 auto;
+  border: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.03));
+  border-radius: calc(var(--radius) + 2px);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.auth-card .card-header {
+  padding: 18px 18px 0;
+}
+
+.auth-form {
+  display: grid;
+  gap: 12px;
+  padding: 16px 18px 18px;
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+}
+
+.field label {
+  color: rgba(255, 255, 255, 0.84);
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.field input {
+  width: 100%;
+  padding: 12px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.22);
+  color: var(--text);
+  outline: none;
+}
+
+.field input:focus {
+  border-color: rgba(124, 92, 255, 0.6);
+  box-shadow: 0 0 0 4px rgba(124, 92, 255, 0.15);
+}
+
+.auth-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.auth-actions .button {
+  flex: 1;
+}
+
+.helper-row {
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  padding: 0 18px 18px;
+}
+
+.helper-row a {
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.config {
+  border-top: 1px solid var(--border);
+  padding: 14px 18px 18px;
+  background: rgba(0, 0, 0, 0.22);
+}
+
+.config summary {
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.8);
+  font-weight: 700;
+}
+
+.config .config-grid {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 0 18px 10px;
+}
+
+.tab {
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 14px;
+  padding: 12px 12px;
+}
+
+.tab input {
+  margin-right: 8px;
+}
+
+.tab label {
+  cursor: pointer;
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.tab p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.hidden {
+  display: none !important;
+}
+
