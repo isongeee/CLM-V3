@@ -1,0 +1,13 @@
+project_id = "v3-clm"
+
+[api]
+enabled = true
+port = 54321
+
+[db]
+port = 54322
+
+[studio]
+enabled = true
+port = 54323
+
