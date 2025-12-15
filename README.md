@@ -1,3 +1,0 @@
-﻿# CLM-V3 (Enterprise CLM)
-
-See `README_ENTERPRISE_CLM.md` for setup instructions, schema/RLS scripts, and repo context.

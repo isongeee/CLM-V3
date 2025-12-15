@@ -169,20 +169,6 @@ CREATE TABLE public.roles (
 );
 
 -- Join table for users and companies
--- Table for company departments
-CREATE TABLE public.departments (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  company_id uuid NOT NULL,
-  name text NOT NULL,
-  code text,
-  parent_department_id uuid,
-  is_active boolean DEFAULT true,
-  created_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT departments_pkey PRIMARY KEY (id),
-  CONSTRAINT departments_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id),
-  CONSTRAINT departments_parent_department_id_fkey FOREIGN KEY (parent_department_id) REFERENCES public.departments(id)
-);
-
 CREATE TABLE public.company_users (
   company_id uuid NOT NULL,
   user_id uuid NOT NULL,
@@ -198,6 +184,20 @@ CREATE TABLE public.company_users (
   CONSTRAINT company_users_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id), -- ensure public.users reference
   CONSTRAINT company_users_role_id_fkey FOREIGN KEY (role_id) REFERENCES public.roles(id),
   CONSTRAINT company_users_department_id_fkey FOREIGN KEY (department_id) REFERENCES public.departments(id)
+);
+
+-- Table for company departments
+CREATE TABLE public.departments (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  company_id uuid NOT NULL,
+  name text NOT NULL,
+  code text,
+  parent_department_id uuid,
+  is_active boolean DEFAULT true,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT departments_pkey PRIMARY KEY (id),
+  CONSTRAINT departments_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id),
+  CONSTRAINT departments_parent_department_id_fkey FOREIGN KEY (parent_department_id) REFERENCES public.departments(id)
 );
 
 -- Table for company-specific contract types
@@ -285,7 +285,7 @@ CREATE TABLE public.contract_versions (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   contract_id uuid NOT NULL,
   version_number integer NOT NULL,
-  status public.contract_status_enum NOT NULL DEFAULT 'draft'::public.contract_status_enum,
+  status text NOT NULL,
   source_file_url text,
   generated_by_ai boolean DEFAULT false,
   author_id uuid,
