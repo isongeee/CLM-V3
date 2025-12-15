@@ -3,6 +3,7 @@
 -- - Private storage bucket + tenant-scoped policies
 -- - Complete RLS coverage for all tables in schema_UPDATED_ENTERPRISE.sql
 -- =====================================================================================
+-- Location: supabase/rls_UPDATED_ENTERPRISE_v2.sql
 
 BEGIN;
 
@@ -45,6 +46,39 @@ AS $$
       AND cu.is_admin = true
   );
 $$;
+CREATE OR REPLACE FUNCTION public.has_company_permission(p_company_id uuid, p_permission text)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT
+    public.is_company_admin(p_company_id)
+    OR EXISTS (
+      SELECT 1
+      FROM public.company_users cu
+      JOIN public.role_permissions rp
+        ON rp.role_id = cu.role_id
+      WHERE cu.company_id = p_company_id
+        AND cu.user_id = auth.uid()
+        AND cu.is_active = true
+        AND rp.permission_key = p_permission
+    );
+$$;
+
+CREATE OR REPLACE FUNCTION public.has_contract_permission(p_contract_id uuid, p_permission text)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT public.has_company_permission(c.company_id, p_permission)
+  FROM public.contracts c
+  WHERE c.id = p_contract_id;
+$$;
+
 CREATE OR REPLACE FUNCTION public.company_id_for_contract(p_contract_id uuid)
 RETURNS uuid
 LANGUAGE sql
@@ -264,8 +298,38 @@ CREATE POLICY "roles_manage_admin"
 ON public.roles
 FOR ALL
 TO authenticated
-USING (public.is_company_admin(company_id))
-WITH CHECK (public.is_company_admin(company_id));
+USING (public.has_company_permission(company_id, 'roles.manage'))
+WITH CHECK (public.has_company_permission(company_id, 'roles.manage'));
+-- -----------------------------------------------------------------------------
+-- RBAC tables
+-- -----------------------------------------------------------------------------
+ALTER TABLE public.permissions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.role_permissions ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "permissions_select_authenticated" ON public.permissions;
+CREATE POLICY "permissions_select_authenticated"
+ON public.permissions
+FOR SELECT
+TO authenticated
+USING (true);
+
+-- Intentionally no write policies for permissions (treat as system catalog)
+DROP POLICY IF EXISTS "role_permissions_select_member" ON public.role_permissions;
+DROP POLICY IF EXISTS "role_permissions_manage_roles" ON public.role_permissions;
+
+CREATE POLICY "role_permissions_select_member"
+ON public.role_permissions
+FOR SELECT
+TO authenticated
+USING (public.is_company_member(company_id));
+
+CREATE POLICY "role_permissions_manage_roles"
+ON public.role_permissions
+FOR ALL
+TO authenticated
+USING (public.has_company_permission(company_id, 'roles.manage'))
+WITH CHECK (public.has_company_permission(company_id, 'roles.manage'));
+
 DROP POLICY IF EXISTS "departments_select_member" ON public.departments;
 DROP POLICY IF EXISTS "departments_manage_admin" ON public.departments;
 CREATE POLICY "departments_select_member"
@@ -277,8 +341,8 @@ CREATE POLICY "departments_manage_admin"
 ON public.departments
 FOR ALL
 TO authenticated
-USING (public.is_company_admin(company_id))
-WITH CHECK (public.is_company_admin(company_id));
+USING (public.has_company_permission(company_id, 'org.manage'))
+WITH CHECK (public.has_company_permission(company_id, 'org.manage'));
 DROP POLICY IF EXISTS "contract_types_select_member" ON public.contract_types;
 DROP POLICY IF EXISTS "contract_types_manage_admin" ON public.contract_types;
 CREATE POLICY "contract_types_select_member"
@@ -290,8 +354,8 @@ CREATE POLICY "contract_types_manage_admin"
 ON public.contract_types
 FOR ALL
 TO authenticated
-USING (public.is_company_admin(company_id))
-WITH CHECK (public.is_company_admin(company_id));
+USING (public.has_company_permission(company_id, 'org.manage'))
+WITH CHECK (public.has_company_permission(company_id, 'org.manage'));
 DROP POLICY IF EXISTS "contract_categories_select_member" ON public.contract_categories;
 DROP POLICY IF EXISTS "contract_categories_manage_admin" ON public.contract_categories;
 CREATE POLICY "contract_categories_select_member"
@@ -303,8 +367,8 @@ CREATE POLICY "contract_categories_manage_admin"
 ON public.contract_categories
 FOR ALL
 TO authenticated
-USING (public.is_company_admin(company_id))
-WITH CHECK (public.is_company_admin(company_id));
+USING (public.has_company_permission(company_id, 'org.manage'))
+WITH CHECK (public.has_company_permission(company_id, 'org.manage'));
 DROP POLICY IF EXISTS "expense_types_select_member" ON public.expense_types;
 DROP POLICY IF EXISTS "expense_types_manage_admin" ON public.expense_types;
 CREATE POLICY "expense_types_select_member"
@@ -316,8 +380,8 @@ CREATE POLICY "expense_types_manage_admin"
 ON public.expense_types
 FOR ALL
 TO authenticated
-USING (public.is_company_admin(company_id))
-WITH CHECK (public.is_company_admin(company_id));
+USING (public.has_company_permission(company_id, 'org.manage'))
+WITH CHECK (public.has_company_permission(company_id, 'org.manage'));
 DROP POLICY IF EXISTS "custom_fields_select_member" ON public.custom_fields;
 DROP POLICY IF EXISTS "custom_fields_manage_admin" ON public.custom_fields;
 CREATE POLICY "custom_fields_select_member"
@@ -329,8 +393,8 @@ CREATE POLICY "custom_fields_manage_admin"
 ON public.custom_fields
 FOR ALL
 TO authenticated
-USING (public.is_company_admin(company_id))
-WITH CHECK (public.is_company_admin(company_id));
+USING (public.has_company_permission(company_id, 'org.manage'))
+WITH CHECK (public.has_company_permission(company_id, 'org.manage'));
 DROP POLICY IF EXISTS "company_settings_select_member" ON public.company_settings;
 DROP POLICY IF EXISTS "company_settings_manage_admin" ON public.company_settings;
 CREATE POLICY "company_settings_select_member"
@@ -342,8 +406,8 @@ CREATE POLICY "company_settings_manage_admin"
 ON public.company_settings
 FOR ALL
 TO authenticated
-USING (public.is_company_admin(company_id))
-WITH CHECK (public.is_company_admin(company_id));
+USING (public.has_company_permission(company_id, 'org.manage'))
+WITH CHECK (public.has_company_permission(company_id, 'org.manage'));
 DROP POLICY IF EXISTS "ai_configs_select_member" ON public.ai_configs;
 DROP POLICY IF EXISTS "ai_configs_manage_admin" ON public.ai_configs;
 CREATE POLICY "ai_configs_select_member"
@@ -355,8 +419,8 @@ CREATE POLICY "ai_configs_manage_admin"
 ON public.ai_configs
 FOR ALL
 TO authenticated
-USING (public.is_company_admin(company_id))
-WITH CHECK (public.is_company_admin(company_id));
+USING (public.has_company_permission(company_id, 'ai.manage'))
+WITH CHECK (public.has_company_permission(company_id, 'ai.manage'));
 DROP POLICY IF EXISTS "approval_workflows_select_member" ON public.approval_workflows;
 DROP POLICY IF EXISTS "approval_workflows_manage_admin" ON public.approval_workflows;
 CREATE POLICY "approval_workflows_select_member"
@@ -368,8 +432,8 @@ CREATE POLICY "approval_workflows_manage_admin"
 ON public.approval_workflows
 FOR ALL
 TO authenticated
-USING (public.is_company_admin(company_id))
-WITH CHECK (public.is_company_admin(company_id));
+USING (public.has_company_permission(company_id, 'workflows.manage'))
+WITH CHECK (public.has_company_permission(company_id, 'workflows.manage'));
 DROP POLICY IF EXISTS "properties_select_member" ON public.properties;
 DROP POLICY IF EXISTS "properties_manage_admin" ON public.properties;
 CREATE POLICY "properties_select_member"
@@ -381,8 +445,8 @@ CREATE POLICY "properties_manage_admin"
 ON public.properties
 FOR ALL
 TO authenticated
-USING (public.is_company_admin(company_id))
-WITH CHECK (public.is_company_admin(company_id));
+USING (public.has_company_permission(company_id, 'org.manage'))
+WITH CHECK (public.has_company_permission(company_id, 'org.manage'));
 DROP POLICY IF EXISTS "counterparties_select_member" ON public.counterparties;
 DROP POLICY IF EXISTS "counterparties_insert_member" ON public.counterparties;
 DROP POLICY IF EXISTS "counterparties_update_member" ON public.counterparties;
@@ -515,18 +579,19 @@ CREATE POLICY "clause_library_insert_member"
 ON public.clause_library
 FOR INSERT
 TO authenticated
-WITH CHECK (public.is_company_member(company_id));
+WITH CHECK (public.has_company_permission(company_id, 'clause_library.manage'));
 CREATE POLICY "clause_library_update_member"
 ON public.clause_library
 FOR UPDATE
 TO authenticated
-USING (public.is_company_member(company_id))
-WITH CHECK (public.is_company_member(company_id));
+USING (public.has_company_permission(company_id, 'clause_library.manage'))
+WITH CHECK (public.has_company_permission(company_id, 'clause_library.manage'));
+
 CREATE POLICY "clause_library_delete_admin"
 ON public.clause_library
 FOR DELETE
 TO authenticated
-USING (public.is_company_admin(company_id));
+USING (public.has_company_permission(company_id, 'clause_library.manage'));
 DROP POLICY IF EXISTS "contract_templates_select_member" ON public.contract_templates;
 DROP POLICY IF EXISTS "contract_templates_insert_member" ON public.contract_templates;
 DROP POLICY IF EXISTS "contract_templates_update_member" ON public.contract_templates;
@@ -540,18 +605,19 @@ CREATE POLICY "contract_templates_insert_member"
 ON public.contract_templates
 FOR INSERT
 TO authenticated
-WITH CHECK (public.is_company_member(company_id));
+WITH CHECK (public.has_company_permission(company_id, 'templates.manage'));
 CREATE POLICY "contract_templates_update_member"
 ON public.contract_templates
 FOR UPDATE
 TO authenticated
-USING (public.is_company_member(company_id))
-WITH CHECK (public.is_company_member(company_id));
+USING (public.has_company_permission(company_id, 'templates.manage'))
+WITH CHECK (public.has_company_permission(company_id, 'templates.manage'));
+
 CREATE POLICY "contract_templates_delete_admin"
 ON public.contract_templates
 FOR DELETE
 TO authenticated
-USING (public.is_company_admin(company_id));
+USING (public.has_company_permission(company_id, 'templates.manage'));
 DROP POLICY IF EXISTS "approval_workflow_steps_select_member" ON public.approval_workflow_steps;
 DROP POLICY IF EXISTS "approval_workflow_steps_manage_admin" ON public.approval_workflow_steps;
 CREATE POLICY "approval_workflow_steps_select_member"
@@ -566,11 +632,12 @@ ON public.approval_workflow_steps
 FOR ALL
 TO authenticated
 USING (
-  public.is_company_admin(public.company_id_for_workflow(workflow_id))
+  public.has_company_permission(public.company_id_for_workflow(workflow_id), 'workflows.manage')
 )
 WITH CHECK (
-  public.is_company_admin(public.company_id_for_workflow(workflow_id))
+  public.has_company_permission(public.company_id_for_workflow(workflow_id), 'workflows.manage')
 );
+
 DROP POLICY IF EXISTS "approval_steps_select_member" ON public.approval_steps;
 DROP POLICY IF EXISTS "approval_steps_insert_member" ON public.approval_steps;
 DROP POLICY IF EXISTS "approval_steps_update_approver_or_admin" ON public.approval_steps;
@@ -739,7 +806,7 @@ CREATE POLICY "audit_logs_select_admin"
 ON public.audit_logs
 FOR SELECT
 TO authenticated
-USING (public.is_company_admin(company_id));
+USING (public.has_company_permission(company_id, 'audit.view'));
 -- NOTE: Intentionally no INSERT/UPDATE/DELETE policies for audit_logs for authenticated users.
 --       Write audit logs from trusted server-side code (service role / edge function).
 
@@ -786,4 +853,124 @@ USING (
 
 -- 5) Reload PostgREST schema cache
 NOTIFY pgrst, 'reload schema';
+-- -----------------------------------------------------------------------------
+-- Signature subsystem RLS
+-- -----------------------------------------------------------------------------
+ALTER TABLE public.signature_envelopes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.signature_recipients ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.signature_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.signature_access_tokens ENABLE ROW LEVEL SECURITY;
+
+-- Envelopes
+DROP POLICY IF EXISTS "signature_envelopes_select_member" ON public.signature_envelopes;
+DROP POLICY IF EXISTS "signature_envelopes_manage_sender" ON public.signature_envelopes;
+DROP POLICY IF EXISTS "signature_envelopes_manage_sender_insert" ON public.signature_envelopes;
+DROP POLICY IF EXISTS "signature_envelopes_manage_sender_update" ON public.signature_envelopes;
+DROP POLICY IF EXISTS "signature_envelopes_manage_sender_delete" ON public.signature_envelopes;
+
+CREATE POLICY "signature_envelopes_select_member"
+ON public.signature_envelopes
+FOR SELECT
+TO authenticated
+USING (public.is_company_member(company_id));
+
+CREATE POLICY "signature_envelopes_manage_sender_insert"
+ON public.signature_envelopes
+FOR INSERT
+TO authenticated
+WITH CHECK (public.has_company_permission(company_id, 'contracts.send_for_signature'));
+
+CREATE POLICY "signature_envelopes_manage_sender_update"
+ON public.signature_envelopes
+FOR UPDATE
+TO authenticated
+USING (public.has_company_permission(company_id, 'contracts.send_for_signature'))
+WITH CHECK (public.has_company_permission(company_id, 'contracts.send_for_signature'));
+
+CREATE POLICY "signature_envelopes_manage_sender_delete"
+ON public.signature_envelopes
+FOR DELETE
+TO authenticated
+USING (public.has_company_permission(company_id, 'contracts.send_for_signature'));
+
+-- Recipients
+DROP POLICY IF EXISTS "signature_recipients_select_member" ON public.signature_recipients;
+DROP POLICY IF EXISTS "signature_recipients_manage_sender" ON public.signature_recipients;
+DROP POLICY IF EXISTS "signature_recipients_manage_sender_insert" ON public.signature_recipients;
+DROP POLICY IF EXISTS "signature_recipients_manage_sender_update" ON public.signature_recipients;
+DROP POLICY IF EXISTS "signature_recipients_manage_sender_delete" ON public.signature_recipients;
+
+CREATE POLICY "signature_recipients_select_member"
+ON public.signature_recipients
+FOR SELECT
+TO authenticated
+USING (public.is_company_member(company_id));
+
+CREATE POLICY "signature_recipients_manage_sender_insert"
+ON public.signature_recipients
+FOR INSERT
+TO authenticated
+WITH CHECK (public.has_company_permission(company_id, 'contracts.send_for_signature'));
+
+CREATE POLICY "signature_recipients_manage_sender_update"
+ON public.signature_recipients
+FOR UPDATE
+TO authenticated
+USING (public.has_company_permission(company_id, 'contracts.send_for_signature'))
+WITH CHECK (public.has_company_permission(company_id, 'contracts.send_for_signature'));
+
+CREATE POLICY "signature_recipients_manage_sender_delete"
+ON public.signature_recipients
+FOR DELETE
+TO authenticated
+USING (public.has_company_permission(company_id, 'contracts.send_for_signature'));
+
+-- Events: readable by members, writable only by service_role (edge functions)
+DROP POLICY IF EXISTS "signature_events_select_member" ON public.signature_events;
+DROP POLICY IF EXISTS "signature_events_insert_service_role" ON public.signature_events;
+
+CREATE POLICY "signature_events_select_member"
+ON public.signature_events
+FOR SELECT
+TO authenticated
+USING (public.is_company_member(company_id));
+
+CREATE POLICY "signature_events_insert_service_role"
+ON public.signature_events
+FOR INSERT
+TO service_role
+WITH CHECK (true);
+
+-- Access tokens: sensitive; readable only by users who can send for signature; writable only by service_role
+DROP POLICY IF EXISTS "signature_access_tokens_select_sender" ON public.signature_access_tokens;
+DROP POLICY IF EXISTS "signature_access_tokens_write_service_role" ON public.signature_access_tokens;
+DROP POLICY IF EXISTS "signature_access_tokens_insert_service_role" ON public.signature_access_tokens;
+DROP POLICY IF EXISTS "signature_access_tokens_update_service_role" ON public.signature_access_tokens;
+DROP POLICY IF EXISTS "signature_access_tokens_delete_service_role" ON public.signature_access_tokens;
+
+CREATE POLICY "signature_access_tokens_select_sender"
+ON public.signature_access_tokens
+FOR SELECT
+TO authenticated
+USING (public.has_company_permission(company_id, 'contracts.send_for_signature'));
+
+CREATE POLICY "signature_access_tokens_insert_service_role"
+ON public.signature_access_tokens
+FOR INSERT
+TO service_role
+WITH CHECK (true);
+
+CREATE POLICY "signature_access_tokens_update_service_role"
+ON public.signature_access_tokens
+FOR UPDATE
+TO service_role
+USING (true)
+WITH CHECK (true);
+
+CREATE POLICY "signature_access_tokens_delete_service_role"
+ON public.signature_access_tokens
+FOR DELETE
+TO service_role
+USING (true);
+
 COMMIT;

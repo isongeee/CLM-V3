@@ -35,8 +35,8 @@
 - **Data Integrity**: Add uniqueness constraints (e.g., one membership per user+company, unique contract version numbers) and indexes for scale.
 
 Reference scripts:
-- `supabase/schema_UPDATED_ENTERPRISE.sql`
-- `supabase/rls_UPDATED_ENTERPRISE.sql`
+- `supabase/schema_UPDATED_ENTERPRISE_v2.sql`
+- `supabase/rls_UPDATED_ENTERPRISE_v2.sql`
 
 ## 3. Folder Structure
 ```
@@ -82,3 +82,9 @@ Reference scripts:
 - **State Management**: Use React Context for global state (Auth, Toast, etc.) and React Query (or `useEffect` with services) for data fetching.
 - **Type Safety**: Maintain strict TypeScript types in `types.ts`.
 - **Environment Variables**: Access via `import.meta.env.VITE_...`.
+
+
+## 6. Enterprise Hardening Notes
+- **Permission-based RBAC** is enforced via `permissions`, `role_permissions`, and `has_company_permission(...)`.
+- **Signature workflow is modeled** with `signature_envelopes`, `signature_recipients`, `signature_events`, and `signature_access_tokens`.
+- **Private file storage** uses `contract_documents.storage_path` (tenant-scoped paths) + signed URLs; avoid public `file_url (legacy/optional)` dependencies.

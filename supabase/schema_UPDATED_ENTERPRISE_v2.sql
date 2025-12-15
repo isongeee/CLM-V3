@@ -1,4 +1,5 @@
 -- This schema is for context and setup. It should be run in the Supabase SQL editor.
+-- Location: supabase/schema_UPDATED_ENTERPRISE_v2.sql
 
 -- Custom ENUM Types
 -- matches types.ts and existing DB enums
@@ -87,6 +88,7 @@ CREATE TYPE public.counterparty_type_enum AS ENUM (
 
 -- Signature Status
 CREATE TYPE public.signature_status_enum AS ENUM (
+    'draft',
     'not_required',
     'not_started',
     'pending_signature',
@@ -168,25 +170,72 @@ CREATE TABLE public.roles (
   CONSTRAINT roles_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id)
 );
 
--- Join table for users and companies
-CREATE TABLE public.company_users (
-  company_id uuid NOT NULL,
-  user_id uuid NOT NULL,
-  role_id uuid,
-  is_admin boolean DEFAULT false,
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  invited_at timestamp with time zone,
-  joined_at timestamp with time zone DEFAULT now(),
-  is_active boolean DEFAULT true,
-  department_id uuid,
-  CONSTRAINT company_users_pkey PRIMARY KEY (id),
-  CONSTRAINT company_users_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id),
-  CONSTRAINT company_users_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id), -- ensure public.users reference
-  CONSTRAINT company_users_role_id_fkey FOREIGN KEY (role_id) REFERENCES public.roles(id),
-  CONSTRAINT company_users_department_id_fkey FOREIGN KEY (department_id) REFERENCES public.departments(id)
+-- Canonical permissions catalog (used for enforced RBAC in RLS + app authorization)
+CREATE TABLE public.permissions (
+  key text PRIMARY KEY,
+  description text,
+  created_at timestamp with time zone DEFAULT now()
 );
 
--- Table for company departments
+-- Role -> Permission mapping (normalized RBAC)
+CREATE TABLE public.role_permissions (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  company_id uuid NOT NULL,
+  role_id uuid NOT NULL,
+  permission_key text NOT NULL,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT role_permissions_pkey PRIMARY KEY (id),
+  CONSTRAINT role_permissions_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE,
+  CONSTRAINT role_permissions_role_id_fkey FOREIGN KEY (role_id) REFERENCES public.roles(id) ON DELETE CASCADE,
+  CONSTRAINT role_permissions_permission_key_fkey FOREIGN KEY (permission_key) REFERENCES public.permissions(key) ON DELETE CASCADE,
+  CONSTRAINT role_permissions_unique UNIQUE (role_id, permission_key)
+);
+
+-- Ensure role_permissions.company_id always matches roles.company_id
+CREATE OR REPLACE FUNCTION public.set_role_permissions_company_id()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  SELECT r.company_id INTO NEW.company_id
+  FROM public.roles r
+  WHERE r.id = NEW.role_id;
+
+  IF NEW.company_id IS NULL THEN
+    RAISE EXCEPTION 'Invalid role_id %: role not found', NEW.role_id;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_set_role_permissions_company_id ON public.role_permissions;
+CREATE TRIGGER trg_set_role_permissions_company_id
+BEFORE INSERT OR UPDATE OF role_id
+ON public.role_permissions
+FOR EACH ROW
+EXECUTE FUNCTION public.set_role_permissions_company_id();
+
+-- Seed a minimal permission set (expand as your product grows)
+INSERT INTO public.permissions (key, description) VALUES
+  ('roles.manage', 'Create/update roles and role permissions'),
+  ('org.manage', 'Manage company settings, departments, and metadata'),
+  ('templates.manage', 'Manage contract templates'),
+  ('clause_library.manage', 'Manage clause library'),
+  ('workflows.manage', 'Manage approval workflows'),
+  ('contracts.create', 'Create contracts'),
+  ('contracts.update', 'Update contracts'),
+  ('contracts.delete', 'Delete contracts'),
+  ('contracts.approve', 'Approve/reject contracts'),
+  ('contracts.send_for_signature', 'Send contracts for signature'),
+  ('ai.manage', 'Manage AI configs and org AI settings'),
+  ('audit.view', 'View audit logs')
+ON CONFLICT (key) DO NOTHING;
+
+
+-- Join table for users and companies
 CREATE TABLE public.departments (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   company_id uuid NOT NULL,
@@ -199,6 +248,28 @@ CREATE TABLE public.departments (
   CONSTRAINT departments_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id),
   CONSTRAINT departments_parent_department_id_fkey FOREIGN KEY (parent_department_id) REFERENCES public.departments(id)
 );
+
+CREATE TABLE public.company_users (
+  company_id uuid NOT NULL,
+  user_id uuid NOT NULL,
+  role_id uuid,
+  is_admin boolean DEFAULT false,
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  invited_at timestamp with time zone,
+  joined_at timestamp with time zone DEFAULT now(),
+  is_active boolean DEFAULT true,
+  department_id uuid,
+  CONSTRAINT company_users_pkey PRIMARY KEY (id),
+  CONSTRAINT company_users_unique UNIQUE (company_id, user_id),
+  CONSTRAINT company_users_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE,
+  CONSTRAINT company_users_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE,
+  CONSTRAINT company_users_role_id_fkey FOREIGN KEY (role_id) REFERENCES public.roles(id) ON DELETE SET NULL,
+  CONSTRAINT company_users_department_id_fkey FOREIGN KEY (department_id) REFERENCES public.departments(id) ON DELETE SET NULL
+);
+
+
+
+-- Table for company departments
 
 -- Table for company-specific contract types
 CREATE TABLE public.contract_types (
@@ -302,24 +373,216 @@ CREATE TABLE public.contract_versions (
   CONSTRAINT contract_versions_superseded_by_version_id_fkey FOREIGN KEY (superseded_by_version_id) REFERENCES public.contract_versions(id)
 );
 
+-- =============================================================================
+-- Signature subsystem (envelopes, recipients, and tamper-evident event trail)
+-- Note: external signer access should be handled via Edge Functions / service role.
+-- =============================================================================
+
+CREATE TABLE public.signature_envelopes (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  contract_id uuid NOT NULL,
+  company_id uuid NOT NULL,
+  provider text NOT NULL DEFAULT 'internal', -- e.g., docusign | adobe_sign | hellosign | internal
+  provider_envelope_id text,
+  status public.signature_status_enum NOT NULL DEFAULT 'draft',
+  created_by uuid,
+  created_at timestamp with time zone DEFAULT now(),
+  sent_at timestamp with time zone,
+  completed_at timestamp with time zone,
+  voided_at timestamp with time zone,
+  metadata jsonb,
+  CONSTRAINT signature_envelopes_pkey PRIMARY KEY (id),
+  CONSTRAINT signature_envelopes_contract_id_fkey FOREIGN KEY (contract_id) REFERENCES public.contracts(id) ON DELETE CASCADE,
+  CONSTRAINT signature_envelopes_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE,
+  CONSTRAINT signature_envelopes_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
+);
+
+CREATE TABLE public.signature_recipients (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  envelope_id uuid NOT NULL,
+  company_id uuid NOT NULL,
+  recipient_role text NOT NULL DEFAULT 'signer', -- signer | cc | approver | viewer
+  signing_order integer DEFAULT 1,
+  name text,
+  email text NOT NULL,
+  user_id uuid, -- internal recipients can map to users.id; external signers leave null
+  status text NOT NULL DEFAULT 'pending', -- pending | sent | viewed | signed | declined | failed
+  signed_at timestamp with time zone,
+  created_at timestamp with time zone DEFAULT now(),
+  metadata jsonb,
+  CONSTRAINT signature_recipients_pkey PRIMARY KEY (id),
+  CONSTRAINT signature_recipients_envelope_id_fkey FOREIGN KEY (envelope_id) REFERENCES public.signature_envelopes(id) ON DELETE CASCADE,
+  CONSTRAINT signature_recipients_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE,
+  CONSTRAINT signature_recipients_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id),
+  CONSTRAINT signature_recipients_role_chk CHECK (recipient_role IN ('signer','cc','approver','viewer'))
+);
+
+CREATE TABLE public.signature_events (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  envelope_id uuid NOT NULL,
+  recipient_id uuid,
+  company_id uuid NOT NULL,
+  event_type text NOT NULL, -- envelope.created | envelope.sent | recipient.viewed | recipient.signed | etc.
+  event_at timestamp with time zone NOT NULL DEFAULT now(),
+  ip_address inet,
+  user_agent text,
+  payload jsonb,
+  CONSTRAINT signature_events_pkey PRIMARY KEY (id),
+  CONSTRAINT signature_events_envelope_id_fkey FOREIGN KEY (envelope_id) REFERENCES public.signature_envelopes(id) ON DELETE CASCADE,
+  CONSTRAINT signature_events_recipient_id_fkey FOREIGN KEY (recipient_id) REFERENCES public.signature_recipients(id) ON DELETE SET NULL,
+  CONSTRAINT signature_events_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE
+);
+
+-- Optional: hashed access tokens for external signers (store only hashes, never raw tokens)
+CREATE TABLE public.signature_access_tokens (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  envelope_id uuid NOT NULL,
+  recipient_id uuid NOT NULL,
+  company_id uuid NOT NULL,
+  token_hash text NOT NULL,
+  expires_at timestamp with time zone NOT NULL,
+  used_at timestamp with time zone,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT signature_access_tokens_pkey PRIMARY KEY (id),
+  CONSTRAINT signature_access_tokens_envelope_id_fkey FOREIGN KEY (envelope_id) REFERENCES public.signature_envelopes(id) ON DELETE CASCADE,
+  CONSTRAINT signature_access_tokens_recipient_id_fkey FOREIGN KEY (recipient_id) REFERENCES public.signature_recipients(id) ON DELETE CASCADE,
+  CONSTRAINT signature_access_tokens_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE
+);
+
+-- Keep envelope/recipient company_id consistent (prevents spoofing company_id)
+CREATE OR REPLACE FUNCTION public.set_signature_company_ids()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_company_id uuid;
+BEGIN
+  IF TG_TABLE_NAME = 'signature_envelopes' THEN
+    SELECT c.company_id INTO v_company_id FROM public.contracts c WHERE c.id = NEW.contract_id;
+    IF v_company_id IS NULL THEN
+      RAISE EXCEPTION 'Invalid contract_id %: contract not found', NEW.contract_id;
+    END IF;
+    NEW.company_id := v_company_id;
+    RETURN NEW;
+  END IF;
+
+  IF TG_TABLE_NAME = 'signature_recipients' THEN
+    SELECT e.company_id INTO v_company_id FROM public.signature_envelopes e WHERE e.id = NEW.envelope_id;
+    IF v_company_id IS NULL THEN
+      RAISE EXCEPTION 'Invalid envelope_id %: envelope not found', NEW.envelope_id;
+    END IF;
+    NEW.company_id := v_company_id;
+    RETURN NEW;
+  END IF;
+
+  IF TG_TABLE_NAME = 'signature_events' THEN
+    SELECT e.company_id INTO v_company_id FROM public.signature_envelopes e WHERE e.id = NEW.envelope_id;
+    IF v_company_id IS NULL THEN
+      RAISE EXCEPTION 'Invalid envelope_id %: envelope not found', NEW.envelope_id;
+    END IF;
+    NEW.company_id := v_company_id;
+    RETURN NEW;
+  END IF;
+
+  IF TG_TABLE_NAME = 'signature_access_tokens' THEN
+    SELECT e.company_id INTO v_company_id
+    FROM public.signature_envelopes e
+    JOIN public.signature_recipients r ON r.envelope_id = e.id
+    WHERE r.id = NEW.recipient_id AND e.id = NEW.envelope_id;
+    IF v_company_id IS NULL THEN
+      RAISE EXCEPTION 'Invalid recipient_id/envelope_id pair';
+    END IF;
+    NEW.company_id := v_company_id;
+    RETURN NEW;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_signature_envelopes_company_id ON public.signature_envelopes;
+CREATE TRIGGER trg_signature_envelopes_company_id
+BEFORE INSERT OR UPDATE OF contract_id
+ON public.signature_envelopes
+FOR EACH ROW
+EXECUTE FUNCTION public.set_signature_company_ids();
+
+DROP TRIGGER IF EXISTS trg_signature_recipients_company_id ON public.signature_recipients;
+CREATE TRIGGER trg_signature_recipients_company_id
+BEFORE INSERT OR UPDATE OF envelope_id
+ON public.signature_recipients
+FOR EACH ROW
+EXECUTE FUNCTION public.set_signature_company_ids();
+
+DROP TRIGGER IF EXISTS trg_signature_events_company_id ON public.signature_events;
+CREATE TRIGGER trg_signature_events_company_id
+BEFORE INSERT OR UPDATE OF envelope_id
+ON public.signature_events
+FOR EACH ROW
+EXECUTE FUNCTION public.set_signature_company_ids();
+
+DROP TRIGGER IF EXISTS trg_signature_access_tokens_company_id ON public.signature_access_tokens;
+CREATE TRIGGER trg_signature_access_tokens_company_id
+BEFORE INSERT OR UPDATE OF envelope_id, recipient_id
+ON public.signature_access_tokens
+FOR EACH ROW
+EXECUTE FUNCTION public.set_signature_company_ids();
+
+
 -- Table for documents associated with a contract
 CREATE TABLE public.contract_documents (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   contract_id uuid NOT NULL,
   version_id uuid,
+  company_id uuid NOT NULL,
   file_name text NOT NULL,
-  file_url text NOT NULL,
+  storage_bucket text NOT NULL DEFAULT 'contracts',
+  storage_path text NOT NULL,
+  file_url text, -- optional legacy / external URL (prefer signed URLs + storage_path)
   file_type text,
-  storage_bucket text,
+  file_size_bytes bigint,
+  checksum_sha256 text,
   uploaded_by uuid,
   uploaded_at timestamp with time zone DEFAULT now(),
-  company_id uuid,
-  file_size_bytes bigint,
+  metadata jsonb,
   CONSTRAINT contract_documents_pkey PRIMARY KEY (id),
-  CONSTRAINT contract_documents_contract_id_fkey FOREIGN KEY (contract_id) REFERENCES public.contracts(id),
-  CONSTRAINT contract_documents_version_id_fkey FOREIGN KEY (version_id) REFERENCES public.contract_versions(id),
-  CONSTRAINT contract_documents_uploaded_by_fkey FOREIGN KEY (uploaded_by) REFERENCES public.users(id)
+  CONSTRAINT contract_documents_contract_id_fkey FOREIGN KEY (contract_id) REFERENCES public.contracts(id) ON DELETE CASCADE,
+  CONSTRAINT contract_documents_version_id_fkey FOREIGN KEY (version_id) REFERENCES public.contract_versions(id) ON DELETE SET NULL,
+  CONSTRAINT contract_documents_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE,
+  CONSTRAINT contract_documents_uploaded_by_fkey FOREIGN KEY (uploaded_by) REFERENCES public.users(id),
+  CONSTRAINT contract_documents_storage_bucket_chk CHECK (storage_bucket = 'contracts'),
+  CONSTRAINT contract_documents_storage_path_chk CHECK (storage_path LIKE (company_id::text || '/%'))
 );
+
+-- Keep company_id consistent with the related contract (prevents spoofing company_id)
+CREATE OR REPLACE FUNCTION public.set_contract_document_company_id()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  SELECT c.company_id INTO NEW.company_id
+  FROM public.contracts c
+  WHERE c.id = NEW.contract_id;
+
+  IF NEW.company_id IS NULL THEN
+    RAISE EXCEPTION 'Invalid contract_id %: contract not found', NEW.contract_id;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_set_contract_document_company_id ON public.contract_documents;
+CREATE TRIGGER trg_set_contract_document_company_id
+BEFORE INSERT OR UPDATE OF contract_id
+ON public.contract_documents
+FOR EACH ROW
+EXECUTE FUNCTION public.set_contract_document_company_id();
+
 
 -- Clause library for reusable clauses
 CREATE TABLE public.clause_library (

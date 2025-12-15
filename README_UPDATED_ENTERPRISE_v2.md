@@ -43,13 +43,29 @@ The application is designed as a multi-tenant SaaS where each tenant is a distin
 
 This project is **multi-tenant** and relies on **Row Level Security (RLS)** for tenant isolation.
 
+### Permission-based RBAC (Enforced)
+
+Enterprise CLM needs **permissioned actions** (not just “admin vs member”). This baseline includes:
+
+- `permissions` (system catalog of permission keys)
+- `role_permissions` (normalized role → permission mapping)
+- `has_company_permission(company_id, permission_key)` helper used by RLS policies
+
+**Admin bypass**: `company_users.is_admin = true` grants all permissions within that company.
+
+Suggested keys (seeded in schema):
+`roles.manage`, `org.manage`, `templates.manage`, `clause_library.manage`, `workflows.manage`,
+`contracts.create`, `contracts.update`, `contracts.delete`, `contracts.approve`,
+`contracts.send_for_signature`, `ai.manage`, `audit.view`
+
+
 **Run these scripts in order:**
 
-1. **Schema / DDL**: `supabase/schema_UPDATED_ENTERPRISE.sql`
+1. **Schema / DDL**: `supabase/schema_UPDATED_ENTERPRISE_v2.sql`
    - Creates tables + enums.
    - Adds recommended constraints + indexes (enterprise hardening patch).
 
-2. **RLS + Storage**: `supabase/rls_UPDATED_ENTERPRISE.sql`
+2. **RLS + Storage**: `supabase/rls_UPDATED_ENTERPRISE_v2.sql`
    - Enables RLS on all tables.
    - Adds tenant-safe policies for every table.
    - Creates/forces the **`contracts` storage bucket as PRIVATE** (no public URLs).
@@ -62,7 +78,7 @@ This project is **multi-tenant** and relies on **Row Level Security (RLS)** for 
 Store files under:
 `<company_id>/contracts/<contract_id>/<filename>`
 
-Then store that **path** (not a public URL) in `contract_documents.storage_path` (or `file_url` if you keep the legacy column).
+Then store that **path** (not a public URL) in `contract_documents.storage_path` (the `file_url` column is optional legacy — prefer `storage_path` + signed URLs).
 
 **How to serve downloads**
 - Use **signed URLs** (short expiry) or an **Edge Function** that validates membership/permissions before streaming.
@@ -128,6 +144,13 @@ The application manages a full contract lifecycle with defined states and transi
     - **Action**: Terminate manually
 
 ### Signature Workflow
+
+**Data model**
+- `signature_envelopes`: one envelope per “send for signature” action
+- `signature_recipients`: internal/external recipients + signing order
+- `signature_events`: tamper-evident event log (written by Edge Functions / service role)
+- `signature_access_tokens`: hashed tokens for external signer links (service role only)
+
 
 Once a contract is fully approved, it enters the **Sent for Signature** stage.
 
@@ -370,8 +393,8 @@ Follow these steps to set up and run the project locally.
 
     - Create a new project on [Supabase](https://app.supabase.io).
     - Go to the **SQL Editor** and run the schema from the `schema.txt` file to create the tables.
-    - After creating the tables, run all policies from the `supabase/rls_UPDATED_ENTERPRISE.sql` file.
-    - Go to **Storage** and create a new public bucket named `contracts`.
+    - After creating the tables, run all policies from the `supabase/rls_UPDATED_ENTERPRISE_v2.sql` file.
+    - Ensure the `contracts` storage bucket exists and is **PRIVATE**.
     - In your project settings, find your **Project URL** and `anon` **public key**.
 
 4.  **Configure Environment Variables:**
