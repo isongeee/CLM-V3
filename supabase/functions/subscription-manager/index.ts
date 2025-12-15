@@ -12,6 +12,11 @@ Deno.serve(async (req) => {
     }
 
     try {
+        const authHeader = req.headers.get('Authorization')
+        if (!authHeader) {
+            throw new Error("Missing Authorization header")
+        }
+
         // Create a Supabase client with the Auth context of the logged in user.
         const supabaseClient = createClient(
             // Supabase API URL - env var exported by default.
@@ -19,7 +24,7 @@ Deno.serve(async (req) => {
             // Supabase API NAME - env var exported by default.
             Deno.env.get('SUPABASE_ANON_KEY') ?? '',
             // Create client with Auth context of the user that called the function.
-            { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
+            { global: { headers: { Authorization: authHeader } } }
         )
 
         // Also create admin client for privileged updates
@@ -34,15 +39,20 @@ Deno.serve(async (req) => {
             throw new Error("Missing required fields: action, company_id")
         }
 
+        const { data: userData, error: userError } = await supabaseClient.auth.getUser()
+        if (userError || !userData?.user) {
+            throw new Error("Unauthorized")
+        }
+
         // Verify user is member and admin of the company
         const { data: membership, error: memError } = await supabaseClient
             .from('company_users')
             .select('is_admin')
             .eq('company_id', company_id)
-            .single() // RLS will ensure we only see our own membership, but we need to check if we are admin
+            .eq('user_id', userData.user.id)
+            .maybeSingle()
 
-        // Note: The above query relies on RLS letting the user see their own row in company_users. 
-        // Usually company_users has RLS "Users can view their own membership".
+        // Note: company_users RLS may allow a member to see multiple rows; filter to the caller's user_id.
 
         if (memError || !membership) {
             throw new Error("Unauthorized: You are not a member of this company or RLS blocked access")

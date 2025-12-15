@@ -89,7 +89,7 @@ const renderPage = async () => {
   } catch (err) {
     statusEl.textContent = "Failed to load documentation.";
     contentEl.innerHTML =
-      `<p class="muted">If you opened this file directly, serve the repo over HTTP (example: <code>python -m http.server 8080</code>) then open <code>http://localhost:8080/docs.html</code>.</p>`;
+      `<p class="muted">If you opened this file directly, run <code>npm run dev</code> and open <code>http://localhost:5173/docs.html</code> (or serve the repo over HTTP with any static server).</p>`;
     tocEl.innerHTML = "";
     console.error(err);
   }

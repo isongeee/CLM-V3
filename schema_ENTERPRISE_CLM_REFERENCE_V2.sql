@@ -86,7 +86,6 @@ WHERE storage_path IS NULL AND file_url IS NOT NULL;
 
 -- storage_path should be required for new rows (enforced by app + RLS)
 ALTER TABLE public.contract_documents
-ALTER TABLE public.contract_documents
   ALTER COLUMN storage_path DROP DEFAULT;
 
 -- Deprecate public URL usage: allow file_url to be NULL (legacy compatibility)
